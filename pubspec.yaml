@@ -1,5 +1,5 @@
 name: akilli_tahta
-description: Akilli LED Tabela v2
+description: Akilli LED Tabela - WiFi kontrolü
 version: 2.0.0+1
 
 environment:
@@ -12,7 +12,6 @@ dependencies:
   provider: ^6.1.1
   flutter_colorpicker: ^1.0.3
   shared_preferences: ^2.2.2
-  permission_handler: ^11.3.1
 
 dev_dependencies:
   flutter_test:
