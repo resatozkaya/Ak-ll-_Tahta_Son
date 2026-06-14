@@ -27,12 +27,18 @@ jobs:
       - name: Flutter projesi olustur
         run: flutter create --org com.akillitahta --project-name akilli_tahta proje
 
-      - name: Kendi dosyalarimi kopyala
-        run: |
-          cp -r lib/* proje/lib/
-          cp pubspec.yaml proje/pubspec.yaml
+      - name: Dart dosyalarini kopyala
+        run: cp -r lib/* proje/lib/
 
-      - name: Android build.gradle duzelt
+      - name: pubspec kopyala
+        run: cp pubspec.yaml proje/pubspec.yaml
+
+      - name: AndroidManifest kopyala
+        run: |
+          mkdir -p proje/android/app/src/main
+          cp android/app/src/main/AndroidManifest.xml proje/android/app/src/main/AndroidManifest.xml
+
+      - name: build.gradle duzelt
         run: |
           cat > proje/android/app/build.gradle << 'EOF'
           plugins {
@@ -67,10 +73,6 @@ jobs:
               source '../..'
           }
           EOF
-
-      - name: AndroidManifest kopyala
-        run: |
-          cp proje/android/app/src/main/AndroidManifest.xml proje/android/app/src/main/AndroidManifest.xml.bak || true
 
       - name: Paketleri indir
         run: cd proje && flutter pub get
