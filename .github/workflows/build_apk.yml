@@ -43,7 +43,6 @@ jobs:
           android {
               namespace "com.akillitahta.akilli_tahta"
               compileSdk 34
-              ndkVersion flutter.ndkVersion
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_1_8
                   targetCompatibility JavaVersion.VERSION_1_8
@@ -55,8 +54,8 @@ jobs:
                   applicationId "com.akillitahta.akilli_tahta"
                   minSdk 21
                   targetSdk 34
-                  versionCode flutter.versionCode
-                  versionName flutter.versionName
+                  versionCode 1
+                  versionName "1.0"
               }
               buildTypes {
                   release {
@@ -68,6 +67,10 @@ jobs:
               source '../..'
           }
           EOF
+
+      - name: AndroidManifest kopyala
+        run: |
+          cp proje/android/app/src/main/AndroidManifest.xml proje/android/app/src/main/AndroidManifest.xml.bak || true
 
       - name: Paketleri indir
         run: cd proje && flutter pub get
