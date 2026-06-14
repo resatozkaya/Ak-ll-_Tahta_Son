@@ -88,11 +88,28 @@ static uint8_t fireG[MH+2][MW]={};
 String serialBuf="";
 
 // ── v6 YENİ DEĞİŞKENLER ──────────────────────────────────────
-bool staticMode  = false;   // yazı sabit (kaymaz)
-bool effectOnly  = false;   // sadece efekt, yazı yok
-bool dualLine    = false;   // çift satır modu
-String line1Text = "";      // çift satır - üst
-String line2Text = "";      // çift satır - alt
+bool staticMode  = false;
+bool effectOnly  = false;
+bool dualLine    = false;
+
+// Figür & Sahne
+uint8_t figureMode   = 0;
+uint8_t sceneMode    = 0;
+uint8_t figureSize   = 3;
+uint8_t fxSpeed      = 50;
+uint8_t fxIntensity  = 50;
+
+// Çift satır - her satır bağımsız ayar
+String line1Text  = "";
+String line2Text  = "";
+uint8_t line1Hue  = 0;      // üst satır renk tonu
+uint8_t line2Hue  = 85;     // alt satır renk tonu
+uint8_t line1Anim = 0;      // 0=sola 1=sağa 2=zıpla 3=dalga 4=gökkuşağı 5=titreme 6=sabit
+uint8_t line2Anim = 1;
+// Çift satır kaydırma pozisyonları
+int16_t l1X=0, l1W=0;
+int16_t l2X=0, l2W=0;
+uint8_t l1Frame=0, l2Frame=0;
 
 // ─── RENK ────────────────────────────────────────────────────
 uint16_t hsv(uint8_t h,uint8_t s=255,uint8_t v=255){
@@ -210,28 +227,123 @@ uint16_t getTextColor(int16_t col){
   }
 }
 void drawText(){
-  if(effectOnly) return;           // sadece efekt modu
+  if(effectOnly) return;
   if(textCount==0&&!dualLine) return;
 
   applyOrient(); matrix.setTextWrap(false); matrix.setTextSize(textSize);
 
   // ── Çift satır modu ──────────────────────────────────────
   if(dualLine){
-    uint8_t oldSize=textSize;
-    matrix.setTextSize(1);  // çift satırda her zaman 1x
-    // Üst satır
+    matrix.setTextSize(1);
+    int16_t x1t,y1t; uint16_t w1h,hh;
+
+    // --- Üst satır ---
     if(line1Text.length()>0){
-      matrix.setTextColor(hsv(baseHue));
-      matrix.setCursor(1, 2);
-      matrix.print(line1Text);
+      matrix.getTextBounds(line1Text,0,0,&x1t,&y1t,&w1h,&hh);
+      l1W=w1h;
+      int yRow=2; // üst satır Y
+
+      // Renk hesapla
+      uint16_t c1=0;
+      switch(line1Anim){
+        case 4: c1=hsv((line1Hue+l1Frame*3)&0xFF); break;              // gökkuşağı
+        case 3: c1=hsv((line1Hue+l1X*8+l1Frame)&0xFF); break;          // dalga
+        case 5: c1=hsv(line1Hue,255,(l1Frame%10<5)?255:80); break;     // titreme
+        default: c1=hsv(line1Hue); break;
+      }
+      matrix.setTextColor(c1);
+
+      // Pozisyon & hareket
+      switch(line1Anim){
+        case 0: // sola kayan
+          matrix.setCursor(l1X,yRow); matrix.print(line1Text);
+          l1X--;
+          if(l1X<-(int16_t)l1W) l1X=MW;
+          break;
+        case 1: // sağa kayan
+          matrix.setCursor(l1X,yRow); matrix.print(line1Text);
+          l1X++;
+          if(l1X>MW) l1X=-(int16_t)l1W;
+          break;
+        case 2: // zıpla (sola git çarp, geri gel)
+          matrix.setCursor(l1X,yRow); matrix.print(line1Text);
+          if(l1Frame<128){ l1X--; if(l1X<0){l1X=0;l1Frame=128;} }
+          else { l1X++; if(l1X+l1W>MW){l1X=MW-l1W;l1Frame=0;} }
+          break;
+        case 3: // dalga renk + sola kayan
+          matrix.setCursor(l1X,yRow); matrix.print(line1Text);
+          l1X--;
+          if(l1X<-(int16_t)l1W) l1X=MW;
+          break;
+        case 4: // gökkuşağı + sola kayan
+          matrix.setCursor(l1X,yRow); matrix.print(line1Text);
+          l1X--;
+          if(l1X<-(int16_t)l1W) l1X=MW;
+          break;
+        case 5: // titreme (yerinde titrer)
+          { int8_t shake=(l1Frame%4<2)?1:-1;
+            matrix.setCursor(1+shake, yRow); matrix.print(line1Text); }
+          break;
+        case 6: // sabit
+          matrix.setCursor(1,yRow); matrix.print(line1Text);
+          break;
+      }
     }
-    // Alt satır
+    l1Frame++;
+
+    // --- Alt satır ---
     if(line2Text.length()>0){
-      matrix.setTextColor(hsv((baseHue+85)&0xFF));
-      matrix.setCursor(1, MH/2+1);
-      matrix.print(line2Text);
+      int16_t x2t,y2t; uint16_t w2h,h2h;
+      matrix.getTextBounds(line2Text,0,0,&x2t,&y2t,&w2h,&h2h);
+      l2W=w2h;
+      int yRow=MH/2+2; // alt satır Y
+
+      uint16_t c2=0;
+      switch(line2Anim){
+        case 4: c2=hsv((line2Hue+l2Frame*3)&0xFF); break;
+        case 3: c2=hsv((line2Hue+l2X*8+l2Frame)&0xFF); break;
+        case 5: c2=hsv(line2Hue,255,(l2Frame%10<5)?255:80); break;
+        default: c2=hsv(line2Hue); break;
+      }
+      matrix.setTextColor(c2);
+
+      switch(line2Anim){
+        case 0: // sola kayan
+          matrix.setCursor(l2X,yRow); matrix.print(line2Text);
+          l2X--;
+          if(l2X<-(int16_t)l2W) l2X=MW;
+          break;
+        case 1: // sağa kayan
+          matrix.setCursor(l2X,yRow); matrix.print(line2Text);
+          l2X++;
+          if(l2X>MW) l2X=-(int16_t)l2W;
+          break;
+        case 2: // zıpla
+          matrix.setCursor(l2X,yRow); matrix.print(line2Text);
+          if(l2Frame<128){ l2X--; if(l2X<0){l2X=0;l2Frame=128;} }
+          else { l2X++; if(l2X+l2W>MW){l2X=MW-l2W;l2Frame=0;} }
+          break;
+        case 3:
+          matrix.setCursor(l2X,yRow); matrix.print(line2Text);
+          l2X--;
+          if(l2X<-(int16_t)l2W) l2X=MW;
+          break;
+        case 4:
+          matrix.setCursor(l2X,yRow); matrix.print(line2Text);
+          l2X--;
+          if(l2X<-(int16_t)l2W) l2X=MW;
+          break;
+        case 5: // titreme
+          { int8_t shake=(l2Frame%4<2)?1:-1;
+            matrix.setCursor(1+shake,yRow); matrix.print(line2Text); }
+          break;
+        case 6: // sabit
+          matrix.setCursor(1,yRow); matrix.print(line2Text);
+          break;
+      }
     }
-    matrix.setTextSize(oldSize);
+    l2Frame++;
+    matrix.setTextSize(textSize);
     return;
   }
 
@@ -261,7 +373,140 @@ void drawText(){
     if(playlistMode&&wrapped){activeIdx=(activeIdx+1)%textCount;activeText=customTexts[activeIdx];baseHue+=31;prepareText(activeText);savePrefs();}
   }
 }
-void drawFrame(){matrix.fillScreen(0);drawBg();drawText();drawBorder();matrix.show();frame++;}
+// ─── ÖZEL FIGÜRLER ───────────────────────────────────────────
+void drawHeart(int cx,int cy,int sz,uint8_t hue){
+  uint16_t c=hsv(hue);
+  for(int dy=-sz;dy<=sz;dy++) for(int dx=-sz*2;dx<=sz*2;dx++){
+    float nx=(float)dx/sz, ny=(float)dy/sz;
+    float v=nx*nx+ny*ny-1;
+    if(v*v*v<=nx*nx*ny*ny*ny){
+      int px=cx+dx, py=cy-dy;
+      if(px>=0&&px<MW&&py>=0&&py<MH) matrix.drawPixel(px,py,c);
+    }
+  }
+}
+void drawStar(int cx,int cy,int sz,uint8_t hue){
+  uint16_t c=hsv(hue);
+  int r1=sz, r2=max(1,sz/2);
+  for(int i=0;i<5;i++){
+    float a1=(i*72-90)*PI/180.0f, a2=((i*72+36)-90)*PI/180.0f;
+    int x1=cx+(int)(r1*cos(a1)),y1=cy+(int)(r1*sin(a1));
+    int x2=cx+(int)(r2*cos(a2)),y2=cy+(int)(r2*sin(a2));
+    int dx=x2-x1,dy2=y2-y1,steps=max(abs(dx),abs(dy2));
+    for(int s=0;s<=steps;s++){int px=x1+dx*s/max(steps,1),py=y1+dy2*s/max(steps,1);if(px>=0&&px<MW&&py>=0&&py<MH)matrix.drawPixel(px,py,c);}
+    int x3=cx+(int)(r1*cos(a1+72*PI/180.0f)),y3=cy+(int)(r1*sin(a1+72*PI/180.0f));
+    dx=x3-x2;dy2=y3-y2;steps=max(abs(dx),abs(dy2));
+    for(int s=0;s<=steps;s++){int px=x2+dx*s/max(steps,1),py=y2+dy2*s/max(steps,1);if(px>=0&&px<MW&&py>=0&&py<MH)matrix.drawPixel(px,py,c);}
+  }
+}
+void drawSnowflake(int cx,int cy,int sz,uint8_t hue){
+  uint16_t c=hsv(hue);
+  for(int arm=0;arm<6;arm++){
+    float angle=arm*60*PI/180.0f;
+    for(int r=0;r<=sz;r++){
+      int px=cx+(int)(r*cos(angle)),py=cy+(int)(r*sin(angle));
+      if(px>=0&&px<MW&&py>=0&&py<MH) matrix.drawPixel(px,py,c);
+      if(r==sz/2){
+        for(int b=-1;b<=1;b+=2){
+          float ba=(arm*60+b*45)*PI/180.0f;
+          for(int br=0;br<=sz/3;br++){
+            int bx=px+(int)(br*cos(ba)),by2=py+(int)(br*sin(ba));
+            if(bx>=0&&bx<MW&&by2>=0&&by2<MH) matrix.drawPixel(bx,by2,c);
+          }
+        }
+      }
+    }
+  }
+}
+void drawSpiral(int cx,int cy,int sz,uint8_t hue){
+  for(float t=0;t<sz*6.28f;t+=0.15f){
+    float r=t/(sz*0.8f);
+    int px=cx+(int)(r*cos(t+frame*0.05f));
+    int py=cy+(int)(r*sin(t+frame*0.05f));
+    if(px>=0&&px<MW&&py>=0&&py<MH)
+      matrix.drawPixel(px,py,hsv((hue+((int)(t*10))+(frame*3))&0xFF));
+  }
+}
+void drawArrow(int cx,int cy,int sz,uint8_t hue){
+  uint16_t c=hsv(hue);
+  for(int i=0;i<=sz;i++){
+    if(cx-sz+i>=0&&cx-sz+i<MW&&cy>=0&&cy<MH) matrix.drawPixel(cx-sz+i,cy,c);
+    if(cx+sz-i>=0&&cx+sz-i<MW&&cy-i>=0&&cy-i<MH) matrix.drawPixel(cx+sz-i,cy-i,c);
+    if(cx+sz-i>=0&&cx+sz-i<MW&&cy+i>=0&&cy+i<MH) matrix.drawPixel(cx+sz-i,cy+i,c);
+  }
+}
+void drawTarget(int cx,int cy,int sz,uint8_t hue){
+  for(int r=1;r<=sz;r+=2){
+    uint16_t c=hsv((hue+r*30)&0xFF);
+    for(int a=0;a<360;a+=8){
+      int px=cx+(int)(r*cos(a*PI/180.0f));
+      int py=cy+(int)(r*sin(a*PI/180.0f));
+      if(px>=0&&px<MW&&py>=0&&py<MH) matrix.drawPixel(px,py,c);
+    }
+  }
+  if(cx>=0&&cx<MW&&cy>=0&&cy<MH) matrix.drawPixel(cx,cy,hsv(hue));
+}
+void drawEyes(int cx,int cy,int sz,uint8_t hue){
+  uint16_t white=matrix.Color(200,200,200), iris=hsv(hue);
+  bool blink=(frame/30)%8==0;
+  int ex=(int)(sin(frame*0.05f)*sz/3);
+  if(!blink){
+    for(int dx=-sz/2;dx<=sz/2;dx++) for(int dy=-sz/3;dy<=sz/3;dy++){
+      int lx=cx-sz*2+dx, rx=cx+sz+dx;
+      if(lx>=0&&lx<MW&&cy+dy>=0&&cy+dy<MH) matrix.drawPixel(lx,cy+dy,white);
+      if(rx>=0&&rx<MW&&cy+dy>=0&&cy+dy<MH) matrix.drawPixel(rx,cy+dy,white);
+    }
+    int lpx=cx-sz*2+ex, rpx=cx+sz+ex;
+    if(lpx>=0&&lpx<MW&&cy>=0&&cy<MH) matrix.drawPixel(lpx,cy,iris);
+    if(rpx>=0&&rpx<MW&&cy>=0&&cy<MH) matrix.drawPixel(rpx,cy,iris);
+  } else {
+    for(int x=cx-sz*2-sz/2;x<cx-sz+sz/2;x++) if(x>=0&&x<MW&&cy>=0&&cy<MH) matrix.drawPixel(x,cy,white);
+    for(int x=cx+sz-sz/2;x<cx+sz*2+sz/2;x++) if(x>=0&&x<MW&&cy>=0&&cy<MH) matrix.drawPixel(x,cy,white);
+  }
+}
+
+void drawFigure(){
+  if(figureMode==0) return;
+  int cx=MW/2, cy=MH/2;
+  int sz=constrain((int)figureSize,1,min(MW/2-1,MH/2-1));
+  uint8_t hue=(baseHue+frame*2)&0xFF;
+  switch(figureMode){
+    case 1: drawHeart(cx,cy,sz,hue); break;
+    case 2: drawStar(cx,cy,sz+1,hue); break;
+    case 3: drawSnowflake(cx,cy,sz,hue); break;
+    case 4: drawSpiral(cx,cy,sz,hue); break;
+    case 5: drawArrow(cx,cy,sz,hue); break;
+    case 6: drawTarget(cx,cy,sz,hue); break;
+    case 7: drawEyes(cx,cy,sz,hue); break;
+    default: break;
+  }
+}
+
+// ─── SAHNE MODU ──────────────────────────────────────────────
+void applyScene(){
+  if(sceneMode==0) return; // normal, kullanıcı ayarları
+  switch(sceneMode){
+    case 1: bgFill=BG_RAINBOW;  borderAnim=BA_RAINBOW; borderWidth=1; break; // Gece Kulübü
+    case 2: bgFill=BG_WAVE;     borderAnim=BA_SOLID;   borderHue=128; borderWidth=1; break; // Okyanus
+    case 3: bgFill=BG_MATRIX;   borderAnim=BA_SOLID;   borderHue=80;  borderWidth=1; break; // Orman
+    case 4: bgFill=BG_FIRE;     borderAnim=BA_PULSE;   borderHue=10;  borderWidth=2; break; // Volkan
+    case 5: bgFill=BG_STARS;    borderAnim=BA_CHASE;   borderHue=160; borderWidth=1; break; // Gökyüzü
+    case 6: bgFill=BG_RAINBOW;  borderAnim=BA_SNAKE;   borderWidth=2; break; // Neon Şehir
+    case 7: bgFill=BG_TWINKLE;  borderAnim=BA_SPARKLE; borderHue=200; borderWidth=1; break; // Şeker
+    default: break;
+  }
+}
+
+void drawFrame(){
+  applyScene();  // sahne modu uygula
+  matrix.fillScreen(0);
+  drawBg();
+  if(figureMode>0) drawFigure();  // figür çiz
+  drawText();
+  drawBorder();
+  matrix.show();
+  frame++;
+}
 
 // ─── PREFS ───────────────────────────────────────────────────
 void savePrefs(){
@@ -273,6 +518,10 @@ void savePrefs(){
   prefs.putUChar("bh",borderHue);prefs.putUChar("bw",borderWidth);prefs.putUChar("bg",(uint8_t)bgFill);
   prefs.putBool("sm",staticMode);prefs.putBool("eo",effectOnly);prefs.putBool("dl",dualLine);
   prefs.putString("l1",line1Text);prefs.putString("l2",line2Text);
+  prefs.putUChar("l1h",line1Hue);prefs.putUChar("l2h",line2Hue);
+  prefs.putUChar("l1a",line1Anim);prefs.putUChar("l2a",line2Anim);
+  prefs.putUChar("fgm",figureMode);prefs.putUChar("fgs",figureSize);
+  prefs.putUChar("scn",sceneMode);prefs.putUChar("fxs",fxSpeed);prefs.putUChar("fxi",fxIntensity);
   for(int i=0;i<textCount;i++) prefs.putString(("t"+String(i)).c_str(),customTexts[i]);
   prefs.putUChar("tc",textCount);prefs.end();
 }
@@ -285,6 +534,10 @@ void loadPrefs(){
   borderHue=prefs.getUChar("bh",0);borderWidth=prefs.getUChar("bw",1);bgFill=(BgFill)prefs.getUChar("bg",0);
   staticMode=prefs.getBool("sm",false);effectOnly=prefs.getBool("eo",false);dualLine=prefs.getBool("dl",false);
   line1Text=prefs.getString("l1","");line2Text=prefs.getString("l2","");
+  line1Hue=prefs.getUChar("l1h",0);line2Hue=prefs.getUChar("l2h",85);
+  line1Anim=prefs.getUChar("l1a",0);line2Anim=prefs.getUChar("l2a",1);
+  figureMode=prefs.getUChar("fgm",0);figureSize=prefs.getUChar("fgs",3);
+  sceneMode=prefs.getUChar("scn",0);fxSpeed=prefs.getUChar("fxs",50);fxIntensity=prefs.getUChar("fxi",50);
   uint8_t tc=prefs.getUChar("tc",8);if(tc>0&&tc<=MAX_CUSTOM)textCount=tc;
   for(int i=0;i<textCount;i++){String def=customTexts[i];customTexts[i]=prefs.getString(("t"+String(i)).c_str(),def);}
   prefs.end();
@@ -307,6 +560,11 @@ String buildStatus(){
   s+="\"effectOnly\":"+String(effectOnly?"true":"false")+",";
   s+="\"dualLine\":"+String(dualLine?"true":"false")+",";
   s+="\"line1\":\""+line1Text+"\",\"line2\":\""+line2Text+"\",";
+  s+="\"line1Hue\":"+String(line1Hue)+",\"line2Hue\":"+String(line2Hue)+",";
+  s+="\"line1Anim\":"+String(line1Anim)+",\"line2Anim\":"+String(line2Anim)+",";
+  s+="\"figureMode\":"+String(figureMode)+",\"figureSize\":"+String(figureSize)+",";
+  s+="\"sceneMode\":"+String(sceneMode)+",\"fxSpeed\":"+String(fxSpeed)+",";
+  s+="\"fxIntensity\":"+String(fxIntensity)+",";
   s+="\"texts\":[";
   for(int i=0;i<textCount;i++){s+="\""+customTexts[i]+"\"";if(i<textCount-1)s+=",";}
   s+="]}";return s;
@@ -358,9 +616,23 @@ void processCmd(const String&raw){
   // dualLine: çift satır modu
   if(raw.indexOf("\"dualLine\":")>=0){ dualLine=getBool("dualLine",false); prepareText(activeText); }
 
-  // line1 / line2: çift satır metinleri
-  { String l=getStr("line1"); if(l.length()>0){ line1Text=l; if(dualLine) prepareText(activeText); } }
-  { String l=getStr("line2"); if(l.length()>0){ line2Text=l; } }
+  // line1 / line2: çift satır metinleri ve ayarları
+  { String l=getStr("line1"); if(l.length()>0){ line1Text=l; l1X=MW; l1Frame=0; } }
+  { String l=getStr("line2"); if(l.length()>0){ line2Text=l; l2X=MW; l2Frame=0; } }
+  if(raw.indexOf("\"line1Hue\":")>=0)  line1Hue=(uint8_t)getInt("line1Hue",0);
+  if(raw.indexOf("\"line2Hue\":")>=0)  line2Hue=(uint8_t)getInt("line2Hue",85);
+  if(raw.indexOf("\"line1Anim\":")>=0) line1Anim=(uint8_t)constrain(getInt("line1Anim",0),0,6);
+  if(raw.indexOf("\"line2Anim\":")>=0) line2Anim=(uint8_t)constrain(getInt("line2Anim",1),0,6);
+
+  // Figür & Sahne
+  if(raw.indexOf("\"figureMode\":")>=0) figureMode=(uint8_t)constrain(getInt("figureMode",0),0,7);
+  if(raw.indexOf("\"figureSize\":")>=0) figureSize=(uint8_t)constrain(getInt("figureSize",3),1,8);
+  if(raw.indexOf("\"fxSpeed\":")>=0)    fxSpeed=(uint8_t)constrain(getInt("fxSpeed",50),1,100);
+  if(raw.indexOf("\"fxIntensity\":")>=0) fxIntensity=(uint8_t)constrain(getInt("fxIntensity",50),1,100);
+  if(raw.indexOf("\"sceneMode\":")>=0){
+    sceneMode=(uint8_t)constrain(getInt("sceneMode",0),0,7);
+    if(sceneMode==0){ bgFill=BG_OFF; borderAnim=BA_NONE; } // normal'e dön
+  }
 
   savePrefs();
 }
