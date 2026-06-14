@@ -32,6 +32,43 @@ jobs:
           cp -r lib/* proje/lib/
           cp pubspec.yaml proje/pubspec.yaml
 
+      - name: Android build.gradle duzelt
+        run: |
+          cat > proje/android/app/build.gradle << 'EOF'
+          plugins {
+              id "com.android.application"
+              id "kotlin-android"
+              id "dev.flutter.flutter-gradle-plugin"
+          }
+          android {
+              namespace "com.akillitahta.akilli_tahta"
+              compileSdk 34
+              ndkVersion flutter.ndkVersion
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+              kotlinOptions {
+                  jvmTarget = '1.8'
+              }
+              defaultConfig {
+                  applicationId "com.akillitahta.akilli_tahta"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode flutter.versionCode
+                  versionName flutter.versionName
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.debug
+                  }
+              }
+          }
+          flutter {
+              source '../..'
+          }
+          EOF
+
       - name: Paketleri indir
         run: cd proje && flutter pub get
 
