@@ -187,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
             ),
             onPressed: () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const BaglantiScreen(initialTab: 1))),
+              MaterialPageRoute(builder: (_) => const BaglantiScreen())),
           ),
         ),
         const SizedBox(height: 24),
